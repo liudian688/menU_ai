@@ -10,6 +10,9 @@ import io
 import sys
 import os
 import uuid
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class AliAgentService:
     def __init__(self):
@@ -44,7 +47,7 @@ class AliAgentService:
                 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
                 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-            dashscope.api_key = "sk-774594d6824b4897a600606f8ca90f99"
+            dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 
         # 开始处理问题并进行整合
         try:
