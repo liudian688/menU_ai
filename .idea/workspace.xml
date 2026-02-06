@@ -3,9 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="b712301c-5c84-4ea7-9915-6959082c8734" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/AI_try/.env" beforeDir="false" afterPath="$PROJECT_DIR$/AI_try/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AI_try/config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/AI_try/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/AI_try/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Neural_Cognitive_Diagnosis-NeuralCD-master/app2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Neural_Cognitive_Diagnosis-NeuralCD-master/app2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -15,27 +12,27 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 0
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
   <component name="ProjectId" id="39A2cQpmgRqCp9vfrCH3J77A1Cl" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.access_token.executor": "Run",
-    "Python.app2.executor": "Run",
-    "Python.app2_primary.executor": "Debug",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "D:/Project menU/menU/menU-frontend-ai"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.access_token.executor&quot;: &quot;Run&quot;,
+    &quot;Python.app2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.app2_primary.executor&quot;: &quot;Debug&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Project menU/menU/menU-frontend-ai&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager" selected="Python.app2_primary">
     <configuration name="access_token" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="menU-frontend-ai" />

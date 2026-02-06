@@ -7,8 +7,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
-import json
-
 
 class CognitiveDiagnosisEngine:
     def __init__(self, model_path=None, student_n=4163, exer_n=17746, knowledge_n=123):
