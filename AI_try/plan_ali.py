@@ -16,47 +16,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class AliAgentService:
+    dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
     def __init__(self):
         self.session_id = str(uuid.uuid4())
         self.conversation_history = []  # 添加对话历史记录
     def process_questions_stream(self, questions: List[Dict]) -> Generator[str, None, None]:
         """流式处理问题的函数 - 支持逐字返回"""
-        if sys.platform == 'win32':
-            # 1. 设置环境变量
-            os.environ['PYTHONIOENCODING'] = 'utf-8'
-            os.environ['LC_ALL'] = 'C.UTF-8'
-
-            # 2. 替换有问题的编码函数
-            original_putheader = http.client.HTTPConnection.putheader
-
-            def safe_putheader(self, header, *values):
-                safe_values = []
-                for v in values:
-                    if isinstance(v, str):
-                        # 过滤掉所有非ASCII字符
-                        v = v.encode('ascii', 'ignore').decode('ascii')
-                    safe_values.append(v)
-                return original_putheader(self, header, *safe_values)
-
-            http.client.HTTPConnection.putheader = safe_putheader
-
-            # 3. 确保标准流使用UTF-8
-            if hasattr(sys.stdout, 'reconfigure'):
-                sys.stdout.reconfigure(encoding='utf-8')
-                sys.stderr.reconfigure(encoding='utf-8')
-            else:
-                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-
-        dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
-        
         # 开始流式处理问题
         try:
             # 使用流式API调用
             session_to_use = self.session_id
 
             responses = Application.call(
-                app_id="cd2e28797bd04ee38c7be01743677d35",
+                app_id="83155b5d536b4980a98fd733affae07b",
                 prompt=json.dumps(questions, ensure_ascii=False),
                 session_id=session_to_use,
                 stream=True  # 启用流式模式
@@ -69,7 +41,6 @@ class AliAgentService:
                     try:
                         content = ""
                         
-                        # 基于阿里云官方建议：早期chunk可能没有内容，这是正常的
                         # 只处理有实际内容的响应块
                         if hasattr(response, 'output') and response.output:
                             output = response.output
@@ -114,8 +85,7 @@ if __name__ == "__main__":
     # 创建系统实例
     system = AliAgentService()
     
-    print("=== 阿里云智能题目处理系统 ===")
-    print("请输入您的需求（输入'结束'或'quit'结束程序）：")
+    print("=== 学习规划系统 ===")
     
     while True:
         try:
@@ -124,13 +94,7 @@ if __name__ == "__main__":
             
             # 检查退出条件
             if user_input.lower() in ['结束', 'quit', 'exit', 'q']:
-                print("感谢使用，再见！")
                 break
-            
-            # 检查空输入
-            if not user_input:
-                print("输入不能为空，请重新输入。")
-                continue
             
             # 构建包含历史记录的对话
             system.conversation_history.append({"role": "user", "content": user_input})
