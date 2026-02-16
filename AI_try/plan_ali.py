@@ -1,16 +1,12 @@
 """
-阿里云的agent调用代码 - 支持流式返回
+阿里云的agent调用代码
 """
 import json
-from typing import Dict, Any, List, Generator
+from typing import Dict, Any, List
 import dashscope
 from dashscope import Application
-import http.client
-import io
-import sys
 import os
 import uuid
-import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,66 +16,55 @@ class AliAgentService:
     def __init__(self):
         self.session_id = str(uuid.uuid4())
         self.conversation_history = []  # 添加对话历史记录
-    def process_questions_stream(self, questions: List[Dict]) -> Generator[str, None, None]:
-        """流式处理问题的函数 - 支持逐字返回"""
-        # 开始流式处理问题
+    def process_questions(self, questions: List[Dict]) -> str:
+        """处理问题的函数 - 直接返回完整响应
+        参数:
+            questions: 问题数据字典
+            
+        返回:
+            str: 完整的AI响应内容
+            
+        功能说明:
+            - 使用阿里云Application API进行调用
+            - 直接返回完整响应内容
+            - 自动处理API错误和异常情况
+            - 维护会话上下文，确保对话连贯性
+            
+        异常处理:
+            - 捕获API调用异常并返回错误信息
+            - 处理网络错误和响应解析错误
+        """
+        # 开始处理问题
         try:
-            # 使用流式API调用
+            # 使用普通API调用
             session_to_use = self.session_id
 
-            responses = Application.call(
+            response = Application.call(
                 app_id="83155b5d536b4980a98fd733affae07b",
                 prompt=json.dumps(questions, ensure_ascii=False),
                 session_id=session_to_use,
-                stream=True  # 启用流式模式
             )
 
-            # 流式返回结果
-            full_content = ""
-            for response in responses:
-                if response.status_code == 200:
-                    try:
-                        content = ""
-                        
-                        # 只处理有实际内容的响应块
-                        if hasattr(response, 'output') and response.output:
-                            output = response.output
-                            
-                            # 检查是否有text属性（基于调试确认的正确位置）
-                            if hasattr(output, 'text') and output.text:
-                                content = output.text
-                        
-                        # 如果当前响应块有内容，则处理
-                        if content:
-                            # 只返回新增的内容（避免重复）
-                            new_content = content[len(full_content):]
-                            if new_content:
-                                yield new_content
-                                full_content = content
-                        
-                        # 如果没有内容，静默跳过（这是正常的流式行为）
-                            
-                    except Exception as e:
-                        # 只对严重错误显示错误信息，忽略属性访问相关的轻微错误
-                        error_msg = str(e)
-                        if "text" not in error_msg and "content" not in error_msg:
-                            yield f"\n[处理响应时出错: {error_msg}]"
-                        
+            # 处理响应
+            if response.status_code == 200:
+                if hasattr(response, 'output') and response.output:
+                    output = response.output
+                    
+                    # 检查是否有text属性
+                    if hasattr(output, 'text') and output.text:
+                        return output.text
+                    else:
+                        return "[错误：响应中没有找到text内容]"
                 else:
-                    yield f"\n[API错误: {response.status_code}]"
-                    if hasattr(response, 'message'):
-                        yield f"\n[错误信息: {response.message}]"
-                    break
+                    return "[错误：响应中没有output内容]"
+            else:
+                error_msg = f"[API错误: {response.status_code}]"
+                if hasattr(response, 'message'):
+                    error_msg += f"\n[错误信息: {response.message}]"
+                return error_msg
                     
         except Exception as e:
-            yield f"\n[错误：{str(e)}]"
-
-    def process_questions(self, questions: List[Dict]) -> str:
-        """兼容旧版本的同步处理函数"""
-        result = ""
-        for chunk in self.process_questions_stream(questions):
-            result += chunk
-        return result
+            return f"[错误：{str(e)}]"
 
 if __name__ == "__main__":
     # 创建系统实例
@@ -108,15 +93,13 @@ if __name__ == "__main__":
                 "conversation_history": system.conversation_history
             }
             
-            # 调用流式处理函数
+            # 调用普通处理函数
             print("\n=== AI响应 ===")
-            full_response = ""
             
-            # 实时显示流式输出
-            for chunk in system.process_questions_stream(questions):
-                print(chunk, end="", flush=True)
-                full_response += chunk
-                
+            # 直接获取完整响应
+            full_response = system.process_questions(questions)
+            print(full_response)
+            
             print("\n" + "=" * 50)
             
             # 记录会话历史
