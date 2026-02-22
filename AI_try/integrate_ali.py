@@ -21,7 +21,23 @@ class AliAgentService:
         self.session_id = str(uuid.uuid4())
         self.conversation_history = []  # 添加对话历史记录
     def process_questions_stream(self, questions: List[Dict]) -> Generator[str, None, None]:
-        """流式处理问题的函数 - 支持逐字返回"""
+        """流式处理问题的函数 - 支持逐字返回
+        参数:
+            messages: 对话消息列表，格式为 [{"role": "user/assistant", "content": "消息内容"}, ...]
+            
+        返回:
+            Generator[str, None, None]: 生成器对象，逐字返回AI响应内容
+            
+        功能说明:
+            - 使用阿里云Application API进行流式调用
+            - 支持实时逐字显示AI响应
+            - 自动处理API错误和异常情况
+            - 维护会话上下文，确保对话连贯性
+            
+        异常处理:
+            - 捕获API调用异常并返回错误信息
+            - 处理网络错误和响应解析错误
+        """
         # 开始流式处理问题
         try:
             # 使用流式API调用
