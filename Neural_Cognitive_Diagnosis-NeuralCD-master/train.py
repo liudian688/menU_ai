@@ -55,7 +55,6 @@ def train():
         rmse, auc = validate(net, epoch)
         save_snapshot(net, 'model/model_epoch' + str(epoch + 1))
 
-
 def validate(model, epoch):
     data_loader = ValTestDataLoader('validation')
     net = Net(student_n, exer_n, knowledge_n)
@@ -98,12 +97,10 @@ def validate(model, epoch):
 
     return rmse, auc
 
-
 def save_snapshot(model, filename):
     f = open(filename, 'wb')
     torch.save(model.state_dict(), f)
     f.close()
-
 
 if __name__ == '__main__':
     if (len(sys.argv) != 3) or ((sys.argv[1] != 'cpu') and ('cuda:' not in sys.argv[1])) or (not sys.argv[2].isdigit()):
