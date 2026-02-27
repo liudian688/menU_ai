@@ -2,11 +2,15 @@ import torch
 import json
 import sys
 from model import Net, KnowledgeBase
+import os
+import sqlite3
+from typing import List, Dict, Optional
 
 
 def load_config():
     '''加载配置文件'''  
-    with open('config.txt') as i_f:
+    config_path = os.path.join(os.path.dirname(__file__), 'config1.txt')
+    with open(config_path) as i_f:
         i_f.readline()
         student_n, exer_n, knowledge_n = list(map(eval, i_f.readline().split(',')))
     return student_n, exer_n, knowledge_n
@@ -24,12 +28,13 @@ def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
     student_n, exer_n, knowledge_n = load_config()
     
     # 初始化知识基地和模型
-    knowledge_base = KnowledgeBase(knowledge_n)
+    knowledge_base = KnowledgeBase(knowledge_n)  # 使用KnowledgeBase！
     net = Net(exer_n, knowledge_n)
     
     # 加载模型
     device = torch.device('cpu')
-    load_snapshot(net, 'model/model_epoch' + str(model_epoch))
+    model_path = os.path.join(os.path.dirname(__file__), 'model/model_epoch' + str(model_epoch))
+    load_snapshot(net, model_path)
     net = net.to(device)
     net.eval()
     
@@ -41,10 +46,10 @@ def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
         score = answer['score']
         knowledge_code = answer['knowledge_code']
         
-        # 更新用户知识状态
+        # 更新用户知识状态（使用KnowledgeBase！）
         knowledge_base.update_user_state(user_id, exer_id, score, knowledge_code)
     
-    # 获取用户知识状态
+    # 获取用户知识状态（使用KnowledgeBase！）
     user_state = knowledge_base.get_user_state(user_id).tolist()
     
     # 计算特定领域的技能水平
@@ -65,7 +70,6 @@ def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
     
     return domain_level, knowledge_mastery
 
-
 def load_snapshot(model, filename):
     '''加载模型快照'''  
     f = open(filename, 'rb')
@@ -74,6 +78,96 @@ def load_snapshot(model, filename):
     filtered_state_dict = {k: v for k, v in state_dict.items() if k in model.state_dict()}
     model.load_state_dict(filtered_state_dict, strict=False)
     f.close()
+
+
+class DatabaseConnector:
+    """数据库连接器，用于从数据库读取用户答题记录"""
+    
+    def __init__(self, db_path: str = None):
+        """
+        初始化数据库连接
+        
+        Args:
+            db_path: 数据库文件路径，如果为None则使用默认路径
+        """
+        if db_path is None:
+            # 使用默认数据库路径
+            db_path = os.path.join(os.path.dirname(__file__), 'data', 'user_responses.db')
+        self.db_path = db_path
+        
+    def connect(self):
+        """连接到数据库"""
+        try:
+            self.conn = sqlite3.connect(self.db_path)
+            self.cursor = self.conn.cursor()
+            return True
+        except Exception as e:
+            print(f"数据库连接失败: {e}")
+            return False
+    
+    def get_user_responses(self, user_id: int) -> List[Dict]:
+        """
+        从数据库获取指定用户的所有答题记录
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            user_responses: 用户答题记录列表
+                        格式: [{'exer_id': int, 'score': int, 'knowledge_code': [int, ...]}, ...]
+        """
+        if not hasattr(self, 'conn'):
+            if not self.connect():
+                return []
+        
+            # 查询用户答题记录
+        try:
+            query = """
+            SELECT exer_id, score, knowledge_codes 
+            FROM user_responses 
+            WHERE user_id = ?
+            ORDER BY response_time
+            """
+            self.cursor.execute(query, (user_id,))
+            rows = self.cursor.fetchall()
+            
+            user_responses = []
+            for row in rows:
+                exer_id, score, knowledge_codes_str = row
+                # 将知识点代码字符串转换为列表
+                knowledge_codes = list(map(int, knowledge_codes_str.split(','))) if knowledge_codes_str else []
+                
+                user_responses.append({
+                    "exer_id": exer_id,
+                    "score": int(score),  # 确保score为整数
+                    "knowledge_code": knowledge_codes
+                })
+            
+            return user_responses
+            
+        except Exception as e:
+            print(f"查询用户答题记录失败: {e}")
+            return []
+    
+    def get_available_users(self) -> List[int]:
+        """获取数据库中存在的用户ID列表"""
+        if not hasattr(self, 'conn'):
+            if not self.connect():
+                return []
+        
+        try:
+            query = "SELECT DISTINCT user_id FROM user_responses ORDER BY user_id"
+            self.cursor.execute(query)
+            rows = self.cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            print(f"获取用户列表失败: {e}")
+            return []
+    
+    def close(self):
+        """关闭数据库连接"""
+        if hasattr(self, 'conn'):
+            self.conn.close()
 
 
 def get_user_input():
@@ -114,6 +208,57 @@ def get_user_input():
     
     return user_answers, domain_knowledge_codes
 
+def get_user_from_database():
+    """从数据库获取用户答题记录"""
+    print("=== 从数据库读取用户数据 ===")
+    
+    # 创建数据库连接器
+    db_connector = DatabaseConnector()
+    
+    # 获取可用的用户列表
+    available_users = db_connector.get_available_users()
+    
+    if not available_users:
+        print("数据库中暂无用户数据，请先添加用户答题记录。")
+        print("将使用手动输入方式。")
+        return get_user_input()
+    
+    # 显示可用的用户
+    print("可用的用户ID：", available_users)
+    
+    # 获取用户输入
+    while True:
+        try:
+            user_id = int(input("请输入要评估的用户ID：").strip())
+            if user_id in available_users:
+                break
+            else:
+                print(f"用户ID {user_id} 不存在，请重新输入。")
+        except ValueError:
+            print("请输入有效的数字用户ID。")
+    
+    # 从数据库获取用户答题记录
+    user_answers = db_connector.get_user_responses(user_id)
+    
+    if not user_answers:
+        print(f"用户 {user_id} 没有答题记录。")
+        print("将使用手动输入方式。")
+        return get_user_input()
+    
+    print(f"成功获取用户 {user_id} 的 {len(user_answers)} 条答题记录")
+    
+    # 获取领域知识点
+    print()
+    print("=== 输入特定领域知识点 ===")
+    print("请输入该领域包含的知识点代码，用空格分隔：")
+    domain_input = input("输入知识点代码：").strip()
+    domain_knowledge_codes = list(map(int, domain_input.split())) if domain_input else []
+    
+    db_connector.close()
+    
+    return user_answers, domain_knowledge_codes
+
+
 def main():
     '''主函数'''  
     print("=== 用户技能水平评估系统 ===")
@@ -123,14 +268,16 @@ def main():
     # 选择输入方式
     print("请选择输入方式：")
     print("1. 使用示例数据")
-    print("2. 手动输入数据")
-    choice = input("请输入选项（1/2）：").strip()
+    print("2. 从数据库读取数据")
+    print("3. 手动输入数据")
+    choice = input("请输入选项（1/2/3）：").strip()
     print()
     
     if choice == '1':
         # 加载示例数据（如果存在）
         try:
-            with open('data/test_set.json', 'r', encoding='utf8') as f:
+            test_set_path = os.path.join(os.path.dirname(__file__), 'data', 'test_set.json')
+            with open(test_set_path, 'r', encoding='utf8') as f:
                 test_data = json.load(f)
             if test_data:
                 # 使用第一个测试用户的数据作为示例
@@ -156,6 +303,9 @@ def main():
             print(f"加载示例数据失败：{e}")
             print("将使用手动输入方式。")
             user_answers, domain_knowledge_codes = get_user_input()
+    elif choice == '2':
+        # 从数据库读取数据
+        user_answers, domain_knowledge_codes = get_user_from_database()
     else:
         # 手动输入数据
         user_answers, domain_knowledge_codes = get_user_input()

@@ -337,7 +337,7 @@ if __name__ == "__main__":
     
     # 创建诊断引擎
     engine = PersonalizedDiagnosisEngine(
-        model_path="./model/trained_model.pth",  # 预训练模型路径
+        model_path="./model/model_epoch5",  # 预训练模型路径
         student_n=4163,
         exer_n=17746,
         knowledge_n=123,

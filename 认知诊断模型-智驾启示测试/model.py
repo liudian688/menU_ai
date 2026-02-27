@@ -11,6 +11,7 @@ class KnowledgeBase(object):
         self.knowledge_dim = knowledge_dim
         self.user_knowledge_states = {}  # user_id -> knowledge_state
         self.user_history = {}  # user_id -> list of (exer_id, score, knowledge_code)
+        self.knowledge_statistics = {}  # user_id -> {knowledge_code: {'correct': int, 'total': int}}
     
     def get_user_state(self, user_id):
         '''获取用户的知识点掌握状态'''  
@@ -27,18 +28,31 @@ class KnowledgeBase(object):
         if user_id not in self.user_history:
             self.user_history[user_id] = []
         
+        if user_id not in self.knowledge_statistics:
+            self.knowledge_statistics[user_id] = {}
+        
         # 记录答题历史
         self.user_history[user_id].append((exer_id, score, knowledge_code))
         
-        # 更新知识点掌握状态
-        if score == 1:
-            # 答对了，增强对应知识点的掌握度
-            for kn in knowledge_code:
-                self.user_knowledge_states[user_id][kn - 1] = min(1.0, self.user_knowledge_states[user_id][kn - 1] + 0.1)
-        else:
-            # 答错了，减弱对应知识点的掌握度
-            for kn in knowledge_code:
-                self.user_knowledge_states[user_id][kn - 1] = max(0.0, self.user_knowledge_states[user_id][kn - 1] - 0.05)
+        # 更新知识点统计信息
+        for kn in knowledge_code:
+            if kn not in self.knowledge_statistics[user_id]:
+                self.knowledge_statistics[user_id][kn] = {'correct': 0, 'total': 0}
+            
+            self.knowledge_statistics[user_id][kn]['total'] += 1
+            if score == 1:
+                self.knowledge_statistics[user_id][kn]['correct'] += 1
+        
+        # 基于答题次数和正确率重新计算知识点掌握度
+        for kn in knowledge_code:
+            if kn in self.knowledge_statistics[user_id]:
+                stats = self.knowledge_statistics[user_id][kn]
+                if stats['total'] > 0:
+                    # 计算正确率作为掌握度
+                    mastery_level = stats['correct'] / stats['total']
+                    self.user_knowledge_states[user_id][kn - 1] = mastery_level
+                else:
+                    self.user_knowledge_states[user_id][kn - 1] = 0.0
 
 
 class Net(nn.Module):
