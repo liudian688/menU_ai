@@ -1,10 +1,9 @@
 import torch
 import json
-import sys
 from model import Net, KnowledgeBase
 import os
 import sqlite3
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 
 def load_config():
@@ -16,19 +15,20 @@ def load_config():
     return student_n, exer_n, knowledge_n
 
 
-def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
+def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5, user_id=None):
     '''
-    评估用户在特定领域的技能水平
+    使用认知诊断模型评估用户在特定领域的技能水平
     :param user_answers: 用户答题记录，格式为 [{"exer_id": int, "score": int, "knowledge_code": [int, ...]}, ...]
     :param domain_knowledge_codes: 特定领域包含的知识点代码列表
     :param model_epoch: 使用的模型 epoch
-    :return: 用户在该领域的技能水平评分（0-1之间），以及各知识点的掌握情况
+    :param user_id: 用户ID，如果为None则使用临时用户ID（99999）
+    :return: 用户在该领域的技能水平评分（0-1之间），各知识点的掌握情况，以及诊断过程信息
     '''
     # 加载配置
     student_n, exer_n, knowledge_n = load_config()
     
     # 初始化知识基地和模型
-    knowledge_base = KnowledgeBase(knowledge_n)  # 使用KnowledgeBase！
+    knowledge_base = KnowledgeBase(knowledge_n)
     net = Net(exer_n, knowledge_n)
     
     # 加载模型
@@ -38,25 +38,49 @@ def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
     net = net.to(device)
     net.eval()
     
-    # 处理用户答题记录
-    user_id = 99999  # 临时用户ID，不与现有用户冲突
+    # 处理用户答题记录 - 使用模型进行认知诊断
+    if user_id is None:
+        user_id = 99999  # 临时用户ID
+    else:
+        user_id = int(user_id)  # 确保用户ID为整数
     
-    for answer in user_answers:
+    # 记录诊断过程
+    diagnostic_process = []
+    
+    for i, answer in enumerate(user_answers):
         exer_id = answer['exer_id']
         score = answer['score']
         knowledge_code = answer['knowledge_code']
         
-        # 更新用户知识状态（使用KnowledgeBase！）
-        knowledge_base.update_user_state(user_id, exer_id, score, knowledge_code)
+        # 获取当前知识状态（用于诊断过程记录）
+        current_state_before = knowledge_base.get_user_state(user_id).clone()
+        
+        # 使用模型进行认知诊断更新
+        knowledge_base.update_user_state(user_id, exer_id, score, knowledge_code, net)
+        
+        # 获取更新后的知识状态
+        current_state_after = knowledge_base.get_user_state(user_id).clone()
+        
+        # 记录诊断过程
+        diagnostic_info = {
+            'step': i + 1,
+            'exer_id': exer_id,
+            'score': score,
+            'knowledge_code': knowledge_code,
+            'state_before': current_state_before.tolist(),
+            'state_after': current_state_after.tolist(),
+            'state_changes': (current_state_after - current_state_before).tolist()
+        }
+        diagnostic_process.append(diagnostic_info)
     
-    # 获取用户知识状态（使用KnowledgeBase！）
-    user_state = knowledge_base.get_user_state(user_id).tolist()
+    # 获取最终的用户知识状态
+    final_user_state = knowledge_base.get_user_state(user_id).tolist()
     
     # 计算特定领域的技能水平
     domain_skills = []
     for kn_code in domain_knowledge_codes:
         if 1 <= kn_code <= knowledge_n:
-            domain_skills.append(user_state[kn_code - 1])
+            domain_skills.append(final_user_state[kn_code - 1])
     
     if domain_skills:
         domain_level = sum(domain_skills) / len(domain_skills)
@@ -65,10 +89,40 @@ def evaluate_user_skill(user_answers, domain_knowledge_codes, model_epoch=5):
     
     # 构建各知识点的掌握情况字典
     knowledge_mastery = {}
-    for i, mastery_level in enumerate(user_state):
+    for i, mastery_level in enumerate(final_user_state):
         knowledge_mastery[i + 1] = mastery_level
     
-    return domain_level, knowledge_mastery
+    # 计算诊断过程的统计信息
+    total_steps = len(diagnostic_process)
+    if total_steps > 0:
+        # 计算平均状态变化幅度
+        avg_change = sum(
+            sum(abs(change) for change in step_info['state_changes'])
+            for step_info in diagnostic_process
+        ) / (total_steps * knowledge_n)
+        
+        # 计算知识状态的稳定性（最后几步的变化幅度）
+        last_steps = min(3, total_steps)
+        if last_steps > 0:
+            recent_changes = [
+                sum(abs(change) for change in step_info['state_changes'])
+                for step_info in diagnostic_process[-last_steps:]
+            ]
+            stability = 1.0 - (sum(recent_changes) / (last_steps * knowledge_n))
+        else:
+            stability = 1.0
+    else:
+        avg_change = 0.0
+        stability = 1.0
+    
+    diagnostic_summary = {
+        'total_steps': total_steps,
+        'avg_state_change': avg_change,
+        'stability': stability,
+        'diagnostic_process': diagnostic_process
+    }
+    
+    return domain_level, knowledge_mastery, diagnostic_summary
 
 def load_snapshot(model, filename):
     '''加载模型快照'''  
@@ -94,6 +148,8 @@ class DatabaseConnector:
             # 使用默认数据库路径
             db_path = os.path.join(os.path.dirname(__file__), 'data', 'user_responses.db')
         self.db_path = db_path
+        self.conn = None
+        self.cursor = None
         
     def connect(self):
         """连接到数据库"""
@@ -116,11 +172,11 @@ class DatabaseConnector:
             user_responses: 用户答题记录列表
                         格式: [{'exer_id': int, 'score': int, 'knowledge_code': [int, ...]}, ...]
         """
-        if not hasattr(self, 'conn'):
+        if self.conn is None:
             if not self.connect():
                 return []
         
-            # 查询用户答题记录
+        # 查询用户答题记录
         try:
             query = """
             SELECT exer_id, score, knowledge_codes 
@@ -149,6 +205,20 @@ class DatabaseConnector:
             print(f"查询用户答题记录失败: {e}")
             return []
     
+    def close(self):
+        """关闭数据库连接"""
+        if self.cursor:
+            self.cursor.close()
+        if self.conn:
+            self.conn.close()
+        self.conn = None
+        self.cursor = None
+    
+    def __del__(self):
+        """析构函数，确保连接被关闭"""
+        self.close()
+        return []
+    
     def get_available_users(self) -> List[int]:
         """获取数据库中存在的用户ID列表"""
         if not hasattr(self, 'conn'):
@@ -163,12 +233,6 @@ class DatabaseConnector:
         except Exception as e:
             print(f"获取用户列表失败: {e}")
             return []
-    
-    def close(self):
-        """关闭数据库连接"""
-        if hasattr(self, 'conn'):
-            self.conn.close()
-
 
 def get_user_input():
     '''获取用户输入的答题记录和领域知识点'''  
@@ -318,10 +382,10 @@ def main():
         print("没有输入特定领域知识点，程序退出。")
         return
     
-    # 评估用户技能水平
-    domain_level, knowledge_mastery = evaluate_user_skill(user_answers, domain_knowledge_codes)
+    # 评估用户技能水平（使用认知诊断模型）
+    domain_level, knowledge_mastery, diagnostic_summary = evaluate_user_skill(user_answers, domain_knowledge_codes)
     
-    print("=== 评估结果 ===")
+    print("=== 认知诊断评估结果 ===")
     print(f"用户在该领域的技能水平：{domain_level:.4f} ({domain_level*100:.1f}%)")
     print()
     
@@ -338,7 +402,21 @@ def main():
         print("评价：您在该领域的技能水平很低，需要从头开始学习。")
     print()
     
-    print("各知识点掌握情况：")
+    # 显示诊断过程统计信息
+    print("=== 诊断过程统计 ===")
+    print(f"诊断步骤数：{diagnostic_summary['total_steps']}")
+    print(f"平均状态变化幅度：{diagnostic_summary['avg_state_change']:.4f}")
+    print(f"诊断稳定性：{diagnostic_summary['stability']:.4f}")
+    
+    if diagnostic_summary['stability'] > 0.9:
+        print("诊断结果稳定性：高（诊断过程收敛良好）")
+    elif diagnostic_summary['stability'] > 0.7:
+        print("诊断结果稳定性：中等")
+    else:
+        print("诊断结果稳定性：较低（建议增加更多答题记录）")
+    print()
+    
+    print("=== 各知识点掌握情况 ===")
     for kn_code in domain_knowledge_codes:
         mastery = knowledge_mastery.get(kn_code, 0.0)
         print(f"知识点 {kn_code}: {mastery:.4f} ({mastery*100:.1f}%)")
@@ -354,6 +432,30 @@ def main():
     else:
         print("=== 所有知识点掌握情况 ===")
         print("没有掌握任何知识点。")
+    print()
+    
+    # 显示详细的诊断过程（可选）
+    show_detailed_diagnosis = input("是否显示详细诊断过程？(y/n): ").strip().lower()
+    if show_detailed_diagnosis == 'y':
+        print("\n=== 详细诊断过程 ===")
+        for step_info in diagnostic_summary['diagnostic_process']:
+            print(f"\n步骤 {step_info['step']}:")
+            print(f"  题目ID: {step_info['exer_id']}, 得分: {step_info['score']}")
+            print(f"  涉及知识点: {step_info['knowledge_code']}")
+            
+            # 显示主要变化的知识点
+            changes = step_info['state_changes']
+            significant_changes = [(i+1, change) for i, change in enumerate(changes) if abs(change) > 0.01]
+            
+            if significant_changes:
+                print("  主要状态变化:")
+                for kn_code, change in significant_changes:
+                    if change > 0:
+                        print(f"    知识点 {kn_code}: +{change:.4f} (增强)")
+                    else:
+                        print(f"    知识点 {kn_code}: {change:.4f} (减弱)")
+            else:
+                print("  状态变化较小（<0.01）")
 
 
 if __name__ == '__main__':
