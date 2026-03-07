@@ -1,5 +1,6 @@
 import json
 import torch
+import os
 
 
 class TrainDataLoader(object):
@@ -11,11 +12,13 @@ class TrainDataLoader(object):
         self.ptr = 0
         self.data = []
 
-        data_file = 'data/train_set.json'
-        config_file = 'config.txt'
+        data_path = os.path.abspath(__file__)
+        data_file = os.path.join(os.path.dirname(data_path), 'database_cx/data/math_train_set.json')
+        config_path = os.path.abspath(__file__)
+        config1_file = os.path.join(os.path.dirname(config_path), 'config1.txt')
         with open(data_file, encoding='utf8') as i_f:
             self.data = json.load(i_f)
-        with open(config_file) as i_f:
+        with open(config1_file) as i_f:
             i_f.readline()
             _, _, knowledge_n = i_f.readline().split(',')
         self.knowledge_dim = int(knowledge_n)
@@ -55,13 +58,17 @@ class ValTestDataLoader(object):
         self.d_type = d_type
 
         if d_type == 'validation':
-            data_file = 'data/val_set.json'
+            file_path = os.path.abspath(__file__)
+            data_file = os.path.join(os.path.dirname(file_path), 'database_cx/data/math_val_set.json')
         else:
-            data_file = 'data/test_set.json'
-        config_file = 'config.txt'
+            file_path = os.path.abspath(__file__)
+            data_file = os.path.join(os.path.dirname(file_path), 'database_cx/data/math_test_set.json')
+        config_path = os.path.abspath(__file__)
+        config1_file = os.path.join(os.path.dirname(config_path), 'config1.txt')
+        
         with open(data_file, encoding='utf8') as i_f:
             self.data = json.load(i_f)
-        with open(config_file) as i_f:
+        with open(config1_file) as i_f:
             i_f.readline()
             _, _, knowledge_n = i_f.readline().split(',')
             self.knowledge_dim = int(knowledge_n)

@@ -350,18 +350,25 @@ def main():
                 for log in example_user['logs'][:3]:  # 只取前3条记录作为示例
                     user_answers.append({
                         "exer_id": log['exer_id'],
-                        "score": log['score'],
-                        "knowledge_code": log['knowledge_code']
+                        "score": log['score']
                     })
                 
                 print("=== 使用示例数据 ===")
-                print("示例用户答题记录：")
+                print("示例用户答题记录（只包含题目和得分）：")
                 print(json.dumps(user_answers, indent=2, ensure_ascii=False))
                 print()
                 
-                # 假设前5个知识点为一个领域
-                domain_knowledge_codes = list(range(1, 6))
-                print(f"示例领域知识点：{domain_knowledge_codes}")
+                # 提示用户需要输入知识点信息
+                print("注意：答题记录已生成，但需要您输入特定领域的知识点代码。")
+                print("请输入该领域包含的知识点代码，用空格分隔：")
+                domain_input = input("输入知识点代码：").strip()
+                domain_knowledge_codes = list(map(int, domain_input.split())) if domain_input else []
+                
+                if not domain_knowledge_codes:
+                    print("未输入知识点，将使用默认知识点1-5")
+                    domain_knowledge_codes = list(range(1, 6))
+                
+                print(f"领域知识点：{domain_knowledge_codes}")
                 print()
         except Exception as e:
             print(f"加载示例数据失败：{e}")

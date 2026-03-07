@@ -8,9 +8,9 @@ from model import Net, KnowledgeBase
 
 
 # can be changed according to config.txt
-exer_n = 17746
-knowledge_n = 123
-student_n = 4163
+exer_n = 500
+knowledge_n = 50
+student_n = 1000
 
 
 # 知识基地实例
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         exit(1)
 
     # global student_n, exer_n, knowledge_n
-    with open('config.txt') as i_f:
+    with open('config1.txt') as i_f:
         i_f.readline()
         student_n, exer_n, knowledge_n = list(map(eval, i_f.readline().split(',')))
 

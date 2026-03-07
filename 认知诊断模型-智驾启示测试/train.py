@@ -2,17 +2,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import json
 import sys
+import os
 from sklearn.metrics import roc_auc_score
 from data_loader import TrainDataLoader, ValTestDataLoader
 from model import Net, KnowledgeBase
 
 
 # can be changed according to config.txt
-exer_n = 17746
-knowledge_n = 123
-student_n = 4163
+exer_n = 500
+knowledge_n = 50
+student_n = 1000
 # can be changed according to command parameter
 device = torch.device(('cuda:0') if torch.cuda.is_available() else 'cpu')
 epoch_n = 5
@@ -83,7 +83,7 @@ def train():
 
         # validate and save current model every epoch
         rmse, auc = validate(net, epoch)
-        save_snapshot(net, 'model/model_epoch' + str(epoch + 1))
+        save_snapshot(net, 'model/model_math_epoch' + str(epoch + 1))
 
 
 def validate(model, epoch):
@@ -169,7 +169,10 @@ if __name__ == '__main__':
         epoch_n = int(sys.argv[2])
 
     # global student_n, exer_n, knowledge_n, device
-    with open('config.txt') as i_f:
+    config_path = os.path.abspath(__file__)
+    config_file = os.path.join(os.path.dirname(config_path), 'config1.txt')
+    
+    with open(config_file) as i_f:
         i_f.readline()
         student_n, exer_n, knowledge_n = list(map(eval, i_f.readline().split(',')))
 
